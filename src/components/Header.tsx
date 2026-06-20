@@ -1,5 +1,6 @@
 import React from "react";
 import { Trees, Sparkles, Flame, Sprout, Award, HelpCircle } from "lucide-react";
+import { motion } from "motion/react";
 import { LoggedAction } from "../types";
 
 interface HeaderProps {
@@ -19,14 +20,18 @@ export default function Header({ loggedActions }: HeaderProps) {
         <Sprout className="w-80 h-80 animate-pulse" />
       </div>
 
-      <div className="flex items-center space-x-3 relative z-10">
-        <div className="w-12 h-12 bg-[#5A5A40] rounded-full flex items-center justify-center shadow-sm">
+      <div className="flex items-center space-x-3 relative z-10 w-full md:w-auto">
+        <motion.div 
+          className="w-12 h-12 bg-[#5A5A40] rounded-full flex items-center justify-center shadow-sm"
+          whileHover={{ scale: 1.1, rotate: 15 }}
+          transition={{ type: "spring", stiffness: 200, damping: 10 }}
+        >
           <Sprout className="w-6 h-6 text-white" />
-        </div>
+        </motion.div>
         <div>
           <div className="flex items-center space-x-2">
-            <h1 className="text-2xl font-serif italic font-bold tracking-tight text-[#5A5A40]">Terra</h1>
-            <span className="text-xs font-mono px-2 py-0.5 bg-[#F5F5F0] text-[#8C8C70] rounded-md border border-[#E6E6DF] font-semibold">
+            <h1 className="text-2xl font-serif-vintage italic font-bold tracking-tight text-[#5A5A40]">Terra</h1>
+            <span className="text-[10px] font-mono px-2 py-0.5 bg-[#F5F5F0] text-[#8C8C70] rounded-md border border-[#E6E6DF] font-semibold transition-all hover:bg-[#5A5A40] hover:text-white cursor-pointer">
               Eco Engine
             </span>
           </div>
@@ -38,38 +43,60 @@ export default function Header({ loggedActions }: HeaderProps) {
 
       <div className="flex flex-wrap items-center gap-4 relative z-10 w-full md:w-auto" id="header-metrics">
         {/* Dynamic Metric: Combined Offset */}
-        <div className="flex items-center space-x-3 bg-[#F5F5F0] border border-[#E6E6DF] px-4 py-2.5 rounded-2xl min-w-[130px]">
+        <motion.div 
+          className="flex items-center space-x-3 bg-[#F5F5F0] border border-[#E6E6DF] px-4 py-2.5 rounded-2xl min-w-[130px]"
+          whileHover={{ y: -2, borderColor: "#5A5A40" }}
+          transition={{ duration: 0.2 }}
+        >
           <div className="w-8 h-8 rounded-full bg-[#D8D8C0] flex items-center justify-center text-[#5A5A40]">
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-4 h-4 animate-bounce" />
           </div>
           <div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-[#8C8C70] leading-none">Offset Today</p>
-            <p className="text-lg font-serif italic font-bold text-[#5A5A40] mt-0.5" id="co2-offset-header">
+            <motion.p 
+              key={totalKgSaved}
+              initial={{ scale: 0.8, opacity: 0.5 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="text-lg font-serif-vintage italic font-bold text-[#5A5A40] mt-0.5" 
+              id="co2-offset-header"
+            >
               {totalKgSaved.toFixed(1)} <span className="text-[10px] font-sans text-[#8C8C70]">kg</span>
-            </p>
+            </motion.p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Dynamic Metric: Tree Absorption */}
-        <div className="flex items-center space-x-3 bg-[#F5F5F0] border border-[#E6E6DF] px-4 py-2.5 rounded-2xl min-w-[130px]">
+        <motion.div 
+          className="flex items-center space-x-3 bg-[#F5F5F0] border border-[#E6E6DF] px-4 py-2.5 rounded-2xl min-w-[130px]"
+          whileHover={{ y: -2, borderColor: "#5A5A40" }}
+          transition={{ duration: 0.2 }}
+        >
           <div className="w-8 h-8 rounded-full bg-[#5A5A40]/10 flex items-center justify-center text-[#5A5A40]">
             <Trees className="w-4 h-4" />
           </div>
           <div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-[#8C8C70] leading-none">Tree Absorbed</p>
-            <p className="text-lg font-serif italic font-bold text-[#5A5A40] mt-0.5">
+            <motion.p 
+              key={treesEquivalent}
+              initial={{ scale: 0.8, opacity: 0.5 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="text-lg font-serif-vintage italic font-bold text-[#5A5A40] mt-0.5"
+            >
               {treesEquivalent.toFixed(2)} <span className="text-[10px] font-sans text-[#8C8C70]">/ yr</span>
-            </p>
+            </motion.p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Dynamic Badge */}
-        <div className="flex items-center space-x-2 bg-white border border-[#E6E6DF] px-4 py-2.5 rounded-2xl h-12">
+        <motion.div 
+          className="flex items-center space-x-2 bg-white border border-[#E6E6DF] px-4 py-2.5 rounded-2xl h-12"
+          whileHover={{ scale: 1.02 }}
+        >
           <div className="w-6 h-6 rounded-full bg-[#5A5A40] overflow-hidden flex items-center justify-center text-[10px] font-bold text-white uppercase font-sans">
             EM
           </div>
           <span className="text-xs font-semibold text-[#5A5A40]">Active Explorer</span>
-        </div>
+        </motion.div>
       </div>
     </header>
   );

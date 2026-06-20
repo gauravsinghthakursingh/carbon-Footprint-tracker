@@ -300,6 +300,7 @@ export default function GeminiCoach({ calculatorData, loggedActions }: GeminiCoa
             className="flex-grow p-3 bg-white border border-[#D8D8C0] text-slate-800 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#5A5A40]"
             disabled={sendingMsg}
             id="chat-text-input"
+            aria-label="Ask the Eco Coach a question"
           />
           <button
             type="submit"

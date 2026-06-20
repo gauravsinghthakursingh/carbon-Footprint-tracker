@@ -168,6 +168,7 @@ export default function EcoChat({ calculatorData, loggedActions }: EcoChatProps)
         <input
           type="text"
           placeholder="Ask a question about carbon tracking..."
+          aria-label="Custom questions about carbon tracking"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}

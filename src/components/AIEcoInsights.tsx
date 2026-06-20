@@ -5,23 +5,34 @@ import { CalculatorData, LoggedAction, InsightResult, HighImpactRecommendation }
 interface AIEcoInsightsProps {
   calculatorData: CalculatorData;
   loggedActions: LoggedAction[];
+  onAddAction?: (action: Omit<LoggedAction, "id" | "timestamp">) => void;
 }
 
-export default function AIEcoInsights({ calculatorData, loggedActions }: AIEcoInsightsProps) {
+export default function AIEcoInsights({ calculatorData, loggedActions, onAddAction }: AIEcoInsightsProps) {
   const [insights, setInsights] = useState<InsightResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [adoptedIndices, setAdoptedIndices] = useState<Record<number, boolean>>({});
+
+  const getCalcHash = (c: CalculatorData, actions: LoggedAction[]): string => {
+    return `${c.carMiles}-${c.carType}-${c.transitMiles}-${c.flightsCount}-${c.dietType}-${c.electricityBill}-${c.cleanGrid}-${c.heatingType}-${c.wasteGeneration}-${c.compost}-actions:${actions.length}`;
+  };
 
   const fetchInsights = async (force: boolean = false) => {
-    // Check if we have cached insights in session storage to save API calls, unless forced
+    const currentHash = getCalcHash(calculatorData, loggedActions);
+    
+    // Check if we have cached insights matching current config to prevent wasteful API spans
     if (!force) {
-      const cached = sessionStorage.getItem("terra_insights");
+      const cached = sessionStorage.getItem("terra_insights_cache");
       if (cached) {
         try {
-          setInsights(JSON.parse(cached));
-          return;
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.hash === currentHash && parsed.insights) {
+            setInsights(parsed.insights);
+            return;
+          }
         } catch (e) {
-          // ignore
+          console.error("Failed to parse static insight cache:", e);
         }
       }
     }
@@ -41,42 +52,47 @@ export default function AIEcoInsights({ calculatorData, loggedActions }: AIEcoIn
 
       const data = await response.json();
       setInsights(data);
-      // Cache results
-      sessionStorage.setItem("terra_insights", JSON.stringify(data));
+      
+      // Cache insights alongside the input parameters hash
+      sessionStorage.setItem("terra_insights_cache", JSON.stringify({
+        insights: data,
+        hash: currentHash
+      }));
     } catch (e: any) {
       console.error(e);
       setErrorMsg("Unable to sync some parameters. Displaying optimized locally computed recommendations instead.");
       // Fallback
       const calculatedTons = calculateFallbackFootprint(calculatorData);
-      setInsights({
+      const fallbackResult = {
         summary: "Active eco explorer",
         annualFootprintEstimate: calculatedTons,
         personalizedImpactScore: Math.round(Math.max(15, 100 - (calculatedTons / 16) * 60)),
         highImpactActions: [
           {
             title: "Transition local driving to active cycling",
-            category: "Transport",
+            category: "Transport" as const,
             estimatedSavings: 800,
-            difficulty: "Medium",
+            difficulty: "Medium" as const,
             rationale: "With weekly commute miles over 100, switching even 2 days to cycling or foot reduces carbon and increases cardiorespiratory fitness."
           },
           {
             title: "Swap dairy products to oat beverages",
-            category: "Diet",
+            category: "Diet" as const,
             estimatedSavings: 450,
-            difficulty: "Easy",
+            difficulty: "Easy" as const,
             rationale: "Replacing cow dairy milk with oat milks reduces agricultural land demands by up to 75% per litre."
           },
           {
             title: "Upgrade to thermostatic cold clothes wash",
-            category: "Home",
+            category: "Home" as const,
             estimatedSavings: 280,
-            difficulty: "Easy",
+            difficulty: "Easy" as const,
             rationale: "By removing water heating requirements during standard laundry loads, you prevent fossil burning at local grid generation hubs."
           }
         ],
         personalizedMessage: "Great job evaluating your carbon details! Keep logging more offsets in your daily dashboard actions."
-      });
+      };
+      setInsights(fallbackResult);
     } finally {
       setLoading(false);
     }
@@ -91,10 +107,25 @@ export default function AIEcoInsights({ calculatorData, loggedActions }: AIEcoIn
     return Number((trans + home + diet + waste).toFixed(2));
   };
 
-  // Run on load and whenever calculator values change significantly
+  // Run on load and whenever calculator values change significantly with 1.2s de-bounce to save API quota
   useEffect(() => {
-    fetchInsights();
-  }, [calculatorData.dietType, calculatorData.carType, calculatorData.cleanGrid, calculatorData.flightsCount]);
+    const timer = setTimeout(() => {
+      fetchInsights();
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [
+    calculatorData.carMiles,
+    calculatorData.carType,
+    calculatorData.transitMiles,
+    calculatorData.flightsCount,
+    calculatorData.dietType,
+    calculatorData.electricityBill,
+    calculatorData.cleanGrid,
+    calculatorData.heatingType,
+    calculatorData.wasteGeneration,
+    calculatorData.compost,
+    loggedActions.length
+  ]);
 
   return (
     <div className="space-y-6" id="ai-insights-component">
@@ -199,11 +230,41 @@ export default function AIEcoInsights({ calculatorData, loggedActions }: AIEcoIn
                   </p>
                 </div>
                 
-                <div className="mt-5 pt-3.5 border-t border-[#E6E6DF]/50 flex justify-between items-center">
-                  <span className="text-[10px] text-[#8C8C70] font-medium font-sans">Est. Savings</span>
-                  <span className="text-xs font-mono font-bold text-[#5A5A40]">
-                    -{rec.estimatedSavings} kg / yr
-                  </span>
+                <div className="mt-5 pt-3.5 border-t border-[#E6E6DF]/50 flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-[#8C8C70] font-medium font-sans">Est. Savings</span>
+                    <span className="text-xs font-mono font-bold text-[#5A5A40]">
+                      -{rec.estimatedSavings} kg / yr
+                    </span>
+                  </div>
+                  {onAddAction && (
+                    <button
+                      onClick={() => {
+                        const dailyKg = Math.max(0.2, Number((rec.estimatedSavings / 365).toFixed(1)));
+                        onAddAction({
+                          title: rec.title,
+                          category: rec.category,
+                          kgSaved: dailyKg
+                        });
+                        setAdoptedIndices((prev) => ({ ...prev, [idx]: true }));
+                      }}
+                      disabled={adoptedIndices[idx]}
+                      className={`w-full py-1.5 rounded-xl text-[10px] font-bold tracking-wide uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        adoptedIndices[idx]
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-[#5A5A40] hover:bg-[#464632] text-white"
+                      }`}
+                    >
+                      {adoptedIndices[idx] ? (
+                        <>
+                          <Smile className="w-3.5 h-3.5" />
+                          Adopted Today
+                        </>
+                      ) : (
+                        "Log Daily Offset"
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

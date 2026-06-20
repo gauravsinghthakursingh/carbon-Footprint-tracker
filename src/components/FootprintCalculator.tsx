@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Car, Home, Flame, Utensils, Award, Sprout, Footprints, Info, Plane } from "lucide-react";
+import { motion } from "motion/react";
 import { CalculatorData } from "../types";
 
 interface CalculatorProps {
@@ -46,7 +47,10 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
   if (data.wasteGeneration === "low") wasteTons = 0.25;
   if (data.compost === "yes") wasteTons *= 0.7;
 
-  const totalCO2Tons = annualTransportCar + annualTransportTransit + annualTransportFlights + annualHomeElectric + heatingTons + dietTons + wasteTons;
+  const annualTransportTotal = annualTransportCar + annualTransportTransit + annualTransportFlights;
+  const annualUtilitiesTotal = annualHomeElectric + heatingTons;
+  const annualDietWasteTotal = dietTons + wasteTons;
+  const totalCO2Tons = annualTransportTotal + annualUtilitiesTotal + annualDietWasteTotal;
 
   return (
     <section className="bg-white border border-[#E6E6DF] rounded-[32px] p-6 md:p-8 shadow-sm flex flex-col h-full" id="carbon-calculator">
@@ -64,6 +68,101 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
           <p className="text-2xl font-serif italic font-bold text-[#5A5A40]" id="live-total-metric">
             {totalCO2Tons.toFixed(2)} <span className="text-[10px] font-sans text-[#8C8C70] font-normal">tons CO₂e / yr</span>
           </p>
+        </div>
+      </div>
+
+      {/* Scenario Baseline Profiles Selector */}
+      <div className="mb-6 bg-[#F5F5F0]/60 p-3.5 rounded-2xl border border-[#E6E6DF]/50">
+        <span className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70] block mb-2.5">
+          Load Scenario Baselines
+        </span>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            {
+              id: "minimalist",
+              name: "Eco Hero",
+              emoji: "🚲",
+              description: "Car-free active commuting, full vegan diet, renewable utilities.",
+              data: {
+                carMiles: 0,
+                carType: "none" as const,
+                transitMiles: 60,
+                flightsCount: 0,
+                dietType: "vegan" as const,
+                electricityBill: 40,
+                cleanGrid: "yes" as const,
+                heatingType: "electric" as const,
+                wasteGeneration: "low" as const,
+                compost: "yes" as const
+              }
+            },
+            {
+              id: "suburban",
+              name: "Suburban",
+              emoji: "🏡",
+              description: "Typical auto passenger miles, balanced food choices, standard grid.",
+              data: {
+                carMiles: 150,
+                carType: "gas" as const,
+                transitMiles: 15,
+                flightsCount: 2,
+                dietType: "balanced" as const,
+                electricityBill: 120,
+                cleanGrid: "no" as const,
+                heatingType: "gas" as const,
+                wasteGeneration: "moderate" as const,
+                compost: "no" as const
+              }
+            },
+            {
+              id: "intensive",
+              name: "Intensive",
+              emoji: "✈️",
+              description: "Frequent commuter drives, heavy meat, multiple long voyages.",
+              data: {
+                carMiles: 300,
+                carType: "gas" as const,
+                transitMiles: 0,
+                flightsCount: 6,
+                dietType: "meat-heavy" as const,
+                electricityBill: 200,
+                cleanGrid: "no" as const,
+                heatingType: "gas" as const,
+                wasteGeneration: "high" as const,
+                compost: "no" as const
+              }
+            }
+          ].map((prof) => {
+            const isMatch = 
+              data.carMiles === prof.data.carMiles &&
+              data.carType === prof.data.carType &&
+              data.transitMiles === prof.data.transitMiles &&
+              data.flightsCount === prof.data.flightsCount &&
+              data.dietType === prof.data.dietType &&
+              data.electricityBill === prof.data.electricityBill &&
+              data.cleanGrid === prof.data.cleanGrid &&
+              data.heatingType === prof.data.heatingType &&
+              data.wasteGeneration === prof.data.wasteGeneration &&
+              data.compost === prof.data.compost;
+
+            return (
+              <motion.button
+                key={prof.id}
+                onClick={() => onChange(prof.data)}
+                title={prof.description}
+                className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-1 cursor-pointer outline-none ${
+                  isMatch
+                    ? "border-[#5A5A40] bg-[#5A5A40] text-white shadow-xs"
+                    : "border-[#E6E6DF] hover:border-[#8C8C70] bg-white text-[#5A5A40]"
+                }`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <span className="text-sm">{prof.emoji}</span>
+                <span className="truncate max-w-full text-center font-sans font-xs tracking-tight">{prof.name}</span>
+              </motion.button>
+            );
+          })}
         </div>
       </div>
 
@@ -113,7 +212,7 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
           <div className="space-y-6" id="panel-transport">
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="text-xs uppercase font-bold tracking-widest text-[#8C8C70] flex items-center gap-1">
+                <label htmlFor="car-miles-input" className="text-xs uppercase font-bold tracking-widest text-[#8C8C70] flex items-center gap-1">
                   Car Mileage / Week
                 </label>
                 <span className="text-xs font-mono font-bold text-[#5A5A40] bg-[#F5F5F0] border border-[#E6E6DF] px-2.5 py-1 rounded-lg">
@@ -121,12 +220,14 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
                 </span>
               </div>
               <input
+                id="car-miles-input"
                 type="range"
                 min="0"
                 max="500"
                 step="10"
                 value={data.carMiles}
                 onChange={(e) => updateField("carMiles", Number(e.target.value))}
+                aria-label="Car Mileage driven in miles per week"
                 className="w-full h-1.5 bg-[#E6E6DF] rounded-lg appearance-none cursor-pointer accent-[#5A5A40]"
               />
               <div className="flex justify-between text-[10px] text-[#8C8C70] mt-1 font-mono">
@@ -141,11 +242,13 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
                 <label className="text-xs uppercase font-bold tracking-widest text-[#8C8C70] block mb-2.5">
                   Vehicle Powertrain
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2" role="group" aria-label="Vehicle Powertrains">
                   {(["gas", "hybrid", "ev"] as const).map((type) => (
                     <button
                       key={type}
+                      type="button"
                       onClick={() => updateField("carType", type)}
+                      aria-pressed={data.carType === type}
                       className={`py-2 px-1 text-xs font-bold rounded-xl border transition-all ${
                         data.carType === type
                           ? "border-[#5A5A40] text-[#5A5A40] bg-white shadow-sm font-extrabold"
@@ -161,7 +264,7 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="text-xs uppercase font-bold tracking-widest text-[#8C8C70]">
+                <label htmlFor="transit-miles-input" className="text-xs uppercase font-bold tracking-widest text-[#8C8C70]">
                   Public Transit / Week
                 </label>
                 <span className="text-xs font-mono font-bold text-[#5A5A40] bg-[#F5F5F0] border border-[#E6E6DF] px-2.5 py-1 rounded-lg">
@@ -169,12 +272,14 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
                 </span>
               </div>
               <input
+                id="transit-miles-input"
                 type="range"
                 min="0"
                 max="200"
                 step="5"
                 value={data.transitMiles}
                 onChange={(e) => updateField("transitMiles", Number(e.target.value))}
+                aria-label="Public Transit ridden in miles per week"
                 className="w-full h-1.5 bg-[#E6E6DF] rounded-lg appearance-none cursor-pointer accent-[#5A5A40]"
               />
               <div className="flex justify-between text-[10px] text-[#8C8C70] mt-1 font-mono">
@@ -211,6 +316,22 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
                 </button>
               </div>
             </div>
+
+            <div className="mt-4 pt-4 border-t border-[#E6E6DF]/60">
+              <div className="flex justify-between items-center text-[10px] font-bold text-[#8C8C70] mb-1.5 tracking-wider">
+                <span>TRANSPORT FOOTPRINT LOAD</span>
+                <span className="font-mono text-xs text-[#5A5A40] font-extrabold">{annualTransportTotal.toFixed(2)}t CO₂e / yr</span>
+              </div>
+              <div className="relative h-2 bg-[#F5F5F0] border border-[#E6E6DF] rounded-full overflow-hidden">
+                <motion.div
+                  className="absolute top-0 bottom-0 left-0 bg-[#5A5A40] rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (annualTransportTotal / 10) * 100)}%` }}
+                  transition={{ type: "spring", stiffness: 70, damping: 14 }}
+                />
+              </div>
+              <p className="text-[9px] text-[#8C8C70] mt-1 italic">Normalized to a typical commuter limit of 10.0 tons/yr</p>
+            </div>
           </div>
         )}
 
@@ -218,7 +339,7 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
           <div className="space-y-6" id="panel-utilities">
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="text-xs uppercase font-bold tracking-widest text-[#8C8C70]">
+                <label htmlFor="electricity-bill-input" className="text-xs uppercase font-bold tracking-widest text-[#8C8C70]">
                   Monthly Electric Expense ($)
                 </label>
                 <span className="text-xs font-mono font-bold text-[#5A5A40] bg-[#F5F5F0] border border-[#E6E6DF] px-2.5 py-1 rounded-lg">
@@ -226,12 +347,14 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
                 </span>
               </div>
               <input
+                id="electricity-bill-input"
                 type="range"
                 min="0"
                 max="400"
                 step="10"
                 value={data.electricityBill}
                 onChange={(e) => updateField("electricityBill", Number(e.target.value))}
+                aria-label="Monthly electric utility spend in dollars"
                 className="w-full h-1.5 bg-[#E6E6DF] rounded-lg appearance-none cursor-pointer accent-[#5A5A40]"
               />
               <div className="flex justify-between text-[10px] text-[#8C8C70] mt-1 font-mono">
@@ -243,16 +366,18 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
 
             <div className="p-4 bg-[#F5F5F0] border border-[#E6E6DF] rounded-2xl space-y-3">
               <div>
-                <label className="text-xs uppercase font-bold tracking-widest text-[#5A5A40] block font-sans">
+                <span className="text-xs uppercase font-bold tracking-widest text-[#5A5A40] block font-sans">
                   Clean / Renewable Energy Program
-                </label>
+                </span>
                 <span className="text-[11px] text-[#8C8C70] block mt-0.5 leading-normal">
                   Are you signed up for community solar, wind premiums, or passive storage?
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Alternative Grid Connection option">
                 <button
+                  type="button"
                   onClick={() => updateField("cleanGrid", "yes")}
+                  aria-pressed={data.cleanGrid === "yes"}
                   className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
                     data.cleanGrid === "yes"
                       ? "border-[#5A5A40] text-[#5A5A40] bg-white shadow-xs font-extrabold"
@@ -262,7 +387,9 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
                   Yes, clean wind/solar
                 </button>
                 <button
+                  type="button"
                   onClick={() => updateField("cleanGrid", "no")}
+                  aria-pressed={data.cleanGrid === "no"}
                   className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
                     data.cleanGrid === "no"
                       ? "border-[#5A5A40] text-[#5A5A40] bg-white shadow-xs font-extrabold"
@@ -275,14 +402,16 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
             </div>
 
             <div>
-              <label className="text-xs uppercase font-bold tracking-widest text-[#8C8C70] block mb-2">
+              <span className="text-xs uppercase font-bold tracking-widest text-[#8C8C70] block mb-2">
                 Primary Thermal Heating Type
-              </label>
-              <div className="grid grid-cols-3 gap-2">
+              </span>
+              <div className="grid grid-cols-3 gap-2" role="group" aria-label="Thermal heating choices">
                 {(["gas", "electric", "other"] as const).map((source) => (
                   <button
                     key={source}
+                    type="button"
                     onClick={() => updateField("heatingType", source)}
+                    aria-pressed={data.heatingType === source}
                     className={`py-2.5 px-1 text-xs font-bold rounded-xl border transition-all capitalize ${
                       data.heatingType === source
                         ? "border-[#5A5A40] text-[#5A5A40] bg-[#F5F5F0] font-extrabold"
@@ -294,20 +423,39 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
                 ))}
               </div>
             </div>
+
+            <div className="mt-4 pt-4 border-t border-[#E6E6DF]/60">
+              <div className="flex justify-between items-center text-[10px] font-bold text-[#8C8C70] mb-1.5 tracking-wider">
+                <span>UTILITY ENERGY LOAD</span>
+                <span className="font-mono text-xs text-[#5A5A40] font-extrabold">{annualUtilitiesTotal.toFixed(2)}t CO₂e / yr</span>
+              </div>
+              <div className="relative h-2 bg-[#F5F5F0] border border-[#E6E6DF] rounded-full overflow-hidden">
+                <motion.div
+                  className="absolute top-0 bottom-0 left-0 bg-[#8C8C70] rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (annualUtilitiesTotal / 6) * 100)}%` }}
+                  transition={{ type: "spring", stiffness: 70, damping: 14 }}
+                />
+              </div>
+              <p className="text-[9px] text-[#8C8C70] mt-1 italic">Normalized to heavy climate utility baseline of 6.0 tons/yr</p>
+            </div>
           </div>
         )}
 
         {activeTab === "diet-waste" && (
           <div className="space-y-6" id="panel-diet-waste">
             <div>
-              <label className="text-xs uppercase font-bold tracking-widest text-[#8C8C70] block mb-2">
+              <span className="text-xs uppercase font-bold tracking-widest text-[#8C8C70] block mb-2">
                 Dietary Pattern
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Dietary Pattern choice">
                 {(["meat-heavy", "balanced", "vegetarian", "vegan"] as const).map((diet) => (
                   <button
                     key={diet}
+                    type="button"
                     onClick={() => updateField("dietType", diet)}
+                    role="radio"
+                    aria-checked={data.dietType === diet}
                     className={`p-3 text-left rounded-2xl border transition-all ${
                       data.dietType === diet
                         ? "border-[#5A5A40] text-[#5A5A40] bg-[#F5F5F0]/60 ring-1 ring-[#5A5A40]/30"
@@ -331,14 +479,16 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-[#F5F5F0] border border-[#E6E6DF] rounded-2xl">
               <div>
-                <label className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70] block mb-2">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70] block mb-2">
                   Waste Level
-                </label>
-                <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-[#E6E6DF]">
+                </span>
+                <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-[#E6E6DF]" role="group" aria-label="Waste generation tier selections">
                   {(["high", "moderate", "low"] as const).map((level) => (
                     <button
                       key={level}
+                      type="button"
                       onClick={() => updateField("wasteGeneration", level)}
+                      aria-pressed={data.wasteGeneration === level}
                       className={`flex-1 py-1 text-[11px] font-bold rounded-lg capitalize transition-all ${
                         data.wasteGeneration === level
                           ? "bg-[#5A5A40] text-white shadow-xs"
@@ -352,12 +502,14 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
               </div>
 
               <div>
-                <label className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70] block mb-2">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70] block mb-2">
                   Active Organic Composting?
-                </label>
-                <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-[#E6E6DF]">
+                </span>
+                <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-[#E6E6DF]" role="group" aria-label="Composting options selection">
                   <button
+                    type="button"
                     onClick={() => updateField("compost", "yes")}
+                    aria-pressed={data.compost === "yes"}
                     className={`flex-1 py-1 text-[11px] font-bold rounded-lg transition-all ${
                       data.compost === "yes"
                         ? "bg-[#5A5A40] text-white shadow-xs"
@@ -367,7 +519,9 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
                     Yes
                   </button>
                   <button
+                    type="button"
                     onClick={() => updateField("compost", "no")}
+                    aria-pressed={data.compost === "no"}
                     className={`flex-1 py-1 text-[11px] font-bold rounded-lg transition-all ${
                       data.compost === "no"
                         ? "bg-[#5A5A40] text-white shadow-xs"
@@ -378,6 +532,22 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
                   </button>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-[#E6E6DF]/60">
+              <div className="flex justify-between items-center text-[10px] font-bold text-[#8C8C70] mb-1.5 tracking-wider">
+                <span>HABIT & WASTE CONVERSION</span>
+                <span className="font-mono text-xs text-[#5A5A40] font-extrabold">{annualDietWasteTotal.toFixed(2)}t CO₂e / yr</span>
+              </div>
+              <div className="relative h-2 bg-[#F5F5F0] border border-[#E6E6DF] rounded-full overflow-hidden">
+                <motion.div
+                  className="absolute top-0 bottom-0 left-0 bg-[#AEAEA0] rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (annualDietWasteTotal / 4) * 100)}%` }}
+                  transition={{ type: "spring", stiffness: 70, damping: 14 }}
+                />
+              </div>
+              <p className="text-[9px] text-[#8C8C70] mt-1 italic">Normalized to a resource-intensive diet-waste scale of 4.0 tons/yr</p>
             </div>
           </div>
         )}
@@ -407,9 +577,11 @@ export default function FootprintCalculator({ data, onChange }: CalculatorProps)
           />
 
           {/* User value filling */}
-          <div
-            className="absolute top-0 bottom-0 left-0 transition-all duration-500 rounded-full bg-[#D8D8C0]/85"
-            style={{ width: `${Math.min(100, (totalCO2Tons / 18) * 100)}%` }}
+          <motion.div
+            className="absolute top-0 bottom-0 left-0 rounded-full bg-[#D8D8C0]/85"
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.min(100, (totalCO2Tons / 18) * 100)}%` }}
+            transition={{ type: "spring", stiffness: 75, damping: 13 }}
           />
         </div>
 

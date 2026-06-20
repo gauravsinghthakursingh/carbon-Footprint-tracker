@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Search, Plus, Trash2, CheckCircle2, ChevronRight, Leaf, Eye, EyeOff } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { Search, Plus, Trash2, CheckCircle2, ChevronRight, Leaf, Eye, EyeOff, Sparkles, Award } from "lucide-react";
 import { LoggedAction, ActionPreset } from "../types";
 import { ECO_ACTION_PRESETS } from "../presets";
 
@@ -18,6 +19,12 @@ export default function ActionLogger({ loggedActions, onAddAction, onRemoveActio
   const [customTitle, setCustomTitle] = useState("");
   const [customKg, setCustomKg] = useState("1.5");
   const [customCategory, setCustomCategory] = useState<"Transport" | "Diet" | "Home" | "Waste">("Transport");
+
+  const totalReducedToday = loggedActions.reduce((acc, act) => acc + act.kgSaved, 0);
+  const hasTransportLog = loggedActions.some((act) => act.category === "Transport");
+  const hasDietLog = loggedActions.some((act) => act.category === "Diet");
+  const hasHomeLog = loggedActions.some((act) => act.category === "Home");
+  const hasWasteLog = loggedActions.some((act) => act.category === "Waste");
 
   // Filtering presets
   const filteredPresets = ECO_ACTION_PRESETS.filter((preset) => {
@@ -53,14 +60,64 @@ export default function ActionLogger({ loggedActions, onAddAction, onRemoveActio
             <CheckCircle2 className="w-5 h-5 text-[#5A5A40]" />
             2. Ecological Actions
           </h2>
-          <p className="text-xs text-[#8C8C70] mt-1">Actively record mitigation habits to offset emissions</p>
+          <p className="text-xs text-[#8C8C70] mt-1 font-sans">Actively record mitigation habits to offset emissions</p>
         </div>
         <button
           onClick={() => setShowCustomForm(!showCustomForm)}
-          className="px-3.5 py-1.5 bg-[#FAF9F5] border border-[#E6E6DF] text-xs font-bold text-[#5A5A40] hover:bg-[#F5F5F0] rounded-xl flex items-center gap-1.5 transition-all"
+          className="px-3.5 py-1.5 bg-[#FAF9F5] border border-[#E6E6DF] text-xs font-bold text-[#5A5A40] hover:bg-[#F5F5F0] rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
         >
           {showCustomForm ? "Close Form" : "Custom Action"}
         </button>
+      </div>
+
+      {/* Environmental Milestones Awards Row */}
+      <div className="mb-6 bg-[#F5F5F0]/60 p-4 rounded-2xl border border-[#E6E6DF]/50">
+        <div className="flex justify-between items-center mb-2.5">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70]">Environmental Milestones</span>
+          <span className="text-xs font-mono font-bold text-[#5A5A40]">Today: {totalReducedToday.toFixed(1)} kg saved</span>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {/* Badge 1 */}
+          <motion.div 
+            className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center transition-all ${
+              hasTransportLog ? "bg-amber-50/70 border-amber-200 text-amber-900" : "bg-white border-slate-100 opacity-60 text-slate-400"
+            }`}
+            animate={{ scale: hasTransportLog ? [1, 1.03, 1] : 1 }}
+          >
+            <span className="text-base">{hasTransportLog ? "🚲" : "🔒"}</span>
+            <span className="text-[9px] font-bold tracking-tight mt-1 truncate w-full">Eco Commuter</span>
+          </motion.div>
+          {/* Badge 2 */}
+          <motion.div 
+            className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center transition-all ${
+              hasDietLog ? "bg-emerald-50/70 border-emerald-200 text-emerald-955" : "bg-white border-slate-100 opacity-60 text-slate-400"
+            }`}
+            animate={{ scale: hasDietLog ? [1, 1.03, 1] : 1 }}
+          >
+            <span className="text-base">{hasDietLog ? "🥗" : "🔒"}</span>
+            <span className="text-[9px] font-bold tracking-tight mt-1 truncate w-full">Diet Sentry</span>
+          </motion.div>
+          {/* Badge 3 */}
+          <motion.div 
+            className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center transition-all ${
+              hasHomeLog ? "bg-sky-50/70 border-sky-200 text-sky-950" : "bg-white border-slate-100 opacity-60 text-slate-400"
+            }`}
+            animate={{ scale: hasHomeLog ? [1, 1.03, 1] : 1 }}
+          >
+            <span className="text-base">{hasHomeLog ? "⚡" : "🔒"}</span>
+            <span className="text-[9px] font-bold tracking-tight mt-1 truncate w-full">Watt Watcher</span>
+          </motion.div>
+          {/* Badge 4 */}
+          <motion.div 
+            className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center transition-all ${
+              totalReducedToday >= 5.0 ? "bg-purple-50/80 border-purple-200 text-purple-950 ring-2 ring-purple-500/10" : "bg-white border-slate-100 opacity-60 text-slate-400"
+            }`}
+            animate={{ scale: totalReducedToday >= 5.0 ? [1, 1.05, 1] : 1 }}
+          >
+            <span className="text-base">{totalReducedToday >= 5.0 ? "🎖️" : "🔒"}</span>
+            <span className="text-[9px] font-bold tracking-tight mt-1 truncate w-full">Saver Elite</span>
+          </motion.div>
+        </div>
       </div>
 
       {/* CUSTOM ADHOC FORM */}
@@ -69,8 +126,9 @@ export default function ActionLogger({ loggedActions, onAddAction, onRemoveActio
           <p className="text-xs font-bold text-[#5A5A40] uppercase tracking-wider">Log Custom Sustainability Action</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70] block mb-1">Action Name</label>
+              <label htmlFor="custom-action-title" className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70] block mb-1">Action Name</label>
               <input
+                id="custom-action-title"
                 type="text"
                 placeholder="e.g. Planted wildflower planter"
                 value={customTitle}
@@ -79,8 +137,9 @@ export default function ActionLogger({ loggedActions, onAddAction, onRemoveActio
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70] block mb-1">Carbon Reduction (kg CO₂e)</label>
+              <label htmlFor="custom-action-kg" className="text-[10px] uppercase font-bold tracking-widest text-[#8C8C70] block mb-1">Carbon Reduction (kg CO₂e)</label>
               <input
+                id="custom-action-kg"
                 type="number"
                 step="0.1"
                 min="0.1"
@@ -124,6 +183,8 @@ export default function ActionLogger({ loggedActions, onAddAction, onRemoveActio
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-[#8C8C70] absolute left-3 top-3" />
           <input
+            id="habit-search-input"
+            aria-label="Search verified eco habits"
             type="text"
             placeholder="Search verified eco habits..."
             value={searchQuery}
@@ -131,11 +192,13 @@ export default function ActionLogger({ loggedActions, onAddAction, onRemoveActio
             className="w-full pl-9 pr-4 py-2.5 text-xs bg-[#F5F5F0] border border-[#E6E6DF] rounded-xl focus:border-[#5A5A40] focus:ring-1 focus:ring-[#5A5A40] outline-hidden text-[#3A3A2F]"
           />
         </div>
-        <div className="flex overflow-x-auto gap-1 pb-1 scrollbar-thin">
+        <div className="flex overflow-x-auto gap-1 pb-1 scrollbar-thin" role="group" aria-label="Eco-habits category filters">
           {(["All", "Transport", "Diet", "Home", "Waste"] as const).map((category) => (
             <button
               key={category}
+              type="button"
               onClick={() => setSelectedCategory(category)}
+              aria-pressed={selectedCategory === category}
               className={`px-3 py-2 text-[11px] font-bold rounded-xl border whitespace-nowrap transition-all ${
                 selectedCategory === category
                   ? "bg-[#5A5A40] text-white border-[#5A5A40]"
