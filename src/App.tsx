@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { TreePine, Sprout, Award, HelpCircle, Landmark, Leaf, ChevronRight, MessageSquare, Compass, CheckCircle2, Trees } from "lucide-react";
 import Header from "./components/Header";
+import AuthModal from "./components/AuthModal";
 import FootprintCalculator from "./components/FootprintCalculator";
 import ActionLogger from "./components/ActionLogger";
 import AIEcoInsights from "./components/AIEcoInsights";
 import EcoChat from "./components/EcoChat";
+import FloatingChatBot from "./components/FloatingChatBot";
 import OverviewChart from "./components/OverviewChart";
 import VirtualForest from "./components/VirtualForest";
 import ClimateHub from "./components/ClimateHub";
 import GreenPledge from "./components/GreenPledge";
-import { CalculatorData, LoggedAction } from "./types";
+import { CalculatorData, LoggedAction, UserProfile } from "./types";
 import { DEFAULT_CALCULATOR_VALUES } from "./presets";
 
 export default function App() {
@@ -42,14 +44,89 @@ export default function App() {
 
   const [navigationTab, setNavigationTab] = useState<"overview" | "journal" | "garden" | "coach">("overview");
 
-  // Save states to localStorage on modifications
+  // Authentication states
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem("terra_auth_token"));
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  // Load session from token on startup (Pro-level Security & persistence)
   useEffect(() => {
-    localStorage.setItem("terra_calculator", JSON.stringify(calculatorData));
-  }, [calculatorData]);
+    async function loadSession() {
+      if (!token) return;
+      try {
+        const response = await fetch("/api/auth/me", {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+        const data = await response.json();
+        if (response.ok && data.user) {
+          setCurrentUser(data.user);
+          if (data.state && data.state.calculatorData && data.state.calculatorData.carType !== "none") {
+            setCalculatorData(data.state.calculatorData);
+            if (data.state.loggedActions) {
+              setLoggedActions(data.state.loggedActions);
+            }
+          } else {
+            // First time sync guest progress to server
+            await fetch("/api/state/sync", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify({ calculatorData, loggedActions })
+            });
+          }
+        } else {
+          localStorage.removeItem("terra_auth_token");
+          setToken(null);
+        }
+      } catch (err) {
+        console.error("Authentication session fetch failed:", err);
+      }
+    }
+    loadSession();
+  }, [token]);
+
+  // Save guest states locally to localStorage as fallback
+  useEffect(() => {
+    if (!currentUser) {
+      localStorage.setItem("terra_calculator", JSON.stringify(calculatorData));
+    }
+  }, [calculatorData, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem("terra_logged_actions", JSON.stringify(loggedActions));
-  }, [loggedActions]);
+    if (!currentUser) {
+      localStorage.setItem("terra_logged_actions", JSON.stringify(loggedActions));
+    }
+  }, [loggedActions, currentUser]);
+
+  // Synchronize state to backend database on modifications when logged in (Debounced Sync)
+  useEffect(() => {
+    if (currentUser && token) {
+      const delaySync = setTimeout(async () => {
+        try {
+          const response = await fetch("/api/state/sync", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ calculatorData, loggedActions })
+          });
+          const data = await response.json();
+          if (response.ok && data.user) {
+            setCurrentUser(data.user);
+          }
+        } catch (e) {
+          console.error("Failed to sync carbon profile stats:", e);
+        }
+      }, 1000);
+
+      return () => clearTimeout(delaySync);
+    }
+  }, [calculatorData, loggedActions, currentUser, token]);
 
   const handleCalculatorChange = (newData: CalculatorData) => {
     setCalculatorData(newData);
@@ -68,6 +145,40 @@ export default function App() {
     setLoggedActions((prev) => prev.filter((act) => act.id !== id));
   };
 
+  const handleAuthSuccess = (user: UserProfile, newToken: string, state: any) => {
+    localStorage.setItem("terra_auth_token", newToken);
+    setToken(newToken);
+    setCurrentUser(user);
+    if (state) {
+      if (state.calculatorData && state.calculatorData.carType !== "none") {
+        setCalculatorData(state.calculatorData);
+      }
+      if (state.loggedActions) {
+        setLoggedActions(state.loggedActions);
+      }
+    }
+  };
+
+  const handleLogout = async () => {
+    if (token) {
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+      } catch (e) {
+        console.error("Logout report failed:", e);
+      }
+    }
+    localStorage.removeItem("terra_auth_token");
+    setToken(null);
+    setCurrentUser(null);
+    setCalculatorData(DEFAULT_CALCULATOR_VALUES);
+    setLoggedActions([]);
+  };
+
   // Reset helper
   const handleReset = () => {
     if (window.confirm("Are you sure you want to restore default values? This clears logged offsets too.")) {
@@ -76,6 +187,9 @@ export default function App() {
       localStorage.removeItem("terra_calculator");
       localStorage.removeItem("terra_logged_actions");
       sessionStorage.removeItem("terra_insights_cache");
+      if (currentUser) {
+        handleLogout();
+      }
     }
   };
 
@@ -87,7 +201,12 @@ export default function App() {
 
       <div className="w-full max-w-7xl mx-auto z-10 flex flex-col flex-1">
         {/* Dynamic Header */}
-        <Header loggedActions={loggedActions} />
+        <Header 
+          loggedActions={loggedActions} 
+          currentUser={currentUser}
+          onLoginClick={() => setIsAuthOpen(true)}
+          onLogoutClick={handleLogout}
+        />
 
         {/* Primary Navigation Hub matching "Natural Tones" Style */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E6E6DF] pb-4" role="tablist" aria-label="Sustainable Ecosystem Navigation Tabs">
@@ -306,6 +425,19 @@ export default function App() {
         </div>
       </footer>
       </div>
+
+      {/* Account Verification Modal popup */}
+      <AuthModal 
+        isOpen={isAuthOpen} 
+        onClose={() => setIsAuthOpen(false)} 
+        onAuthSuccess={handleAuthSuccess} 
+      />
+
+      {/* Persistent Free AI Eco Eco-Assistant Chat Bot segment */}
+      <FloatingChatBot 
+        calculatorData={calculatorData} 
+        loggedActions={loggedActions} 
+      />
     </div>
   );
 }

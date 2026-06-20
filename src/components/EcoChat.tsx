@@ -21,7 +21,9 @@ export default function EcoChat({ calculatorData, loggedActions }: EcoChatProps)
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (scrollRef.current && typeof scrollRef.current.scrollIntoView === "function") {
+      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, isLoading]);
 
   const handleSendMessage = async (textToSend: string) => {

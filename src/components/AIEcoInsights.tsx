@@ -205,7 +205,7 @@ export default function AIEcoInsights({ calculatorData, loggedActions, onAddActi
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="ai-recommendations-grid">
-            {insights?.highImpactActions.map((rec, idx) => (
+            {(insights?.highImpactActions || []).map((rec, idx) => (
               <div
                 key={idx}
                 className="bg-[#FAF9F5] border border-[#E6E6DF] rounded-2xl p-5 hover:border-[#8C8C70] transition-colors relative flex flex-col justify-between"

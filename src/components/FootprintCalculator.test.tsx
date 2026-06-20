@@ -6,16 +6,17 @@ import { CalculatorData } from "../types";
 
 // Mock motion/react to prevent Framer Motion's internal animation rendering issues from interfering with tests
 vi.mock("motion/react", () => {
+  const filterProps = ({ whileHover, whileTap, initial, animate, exit, transition, ...rest }: any) => rest;
   return {
     motion: {
       div: React.forwardRef(({ children, ...props }: any, ref: any) => (
-        <div ref={ref} {...props}>{children}</div>
+        <div ref={ref} {...filterProps(props)}>{children}</div>
       )),
       button: React.forwardRef(({ children, ...props }: any, ref: any) => (
-        <button ref={ref} {...props}>{children}</button>
+        <button ref={ref} {...filterProps(props)}>{children}</button>
       )),
       section: React.forwardRef(({ children, ...props }: any, ref: any) => (
-        <section ref={ref} {...props}>{children}</section>
+        <section ref={ref} {...filterProps(props)}>{children}</section>
       )),
     },
     AnimatePresence: ({ children }: any) => <>{children}</>,

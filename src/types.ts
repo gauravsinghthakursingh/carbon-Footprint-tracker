@@ -51,3 +51,14 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
 }
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  createdAt: string;
+  avatarUrl: string;
+  points: number;
+  level: string;
+}
+

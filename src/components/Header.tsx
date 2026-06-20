@@ -1,13 +1,16 @@
 import React from "react";
 import { Trees, Sparkles, Flame, Sprout, Award, HelpCircle } from "lucide-react";
 import { motion } from "motion/react";
-import { LoggedAction } from "../types";
+import { LoggedAction, UserProfile } from "../types";
 
 interface HeaderProps {
   loggedActions: LoggedAction[];
+  currentUser: UserProfile | null;
+  onLoginClick: () => void;
+  onLogoutClick: () => void;
 }
 
-export default function Header({ loggedActions }: HeaderProps) {
+export default function Header({ loggedActions, currentUser, onLoginClick, onLogoutClick }: HeaderProps) {
   const totalKgSaved = loggedActions.reduce((sum, action) => sum + action.kgSaved, 0);
   
   // 1 tree absorbs approx 20kg of CO2 per year.
@@ -87,16 +90,46 @@ export default function Header({ loggedActions }: HeaderProps) {
           </div>
         </motion.div>
 
-        {/* Dynamic Badge */}
-        <motion.div 
-          className="flex items-center space-x-2 bg-white border border-[#E6E6DF] px-4 py-2.5 rounded-2xl h-12"
-          whileHover={{ scale: 1.02 }}
-        >
-          <div className="w-6 h-6 rounded-full bg-[#5A5A40] overflow-hidden flex items-center justify-center text-[10px] font-bold text-white uppercase font-sans">
-            EM
+        {/* Auth Sync Credentials Section */}
+        {currentUser ? (
+          <div className="flex items-center space-x-3 bg-white border border-[#E6E6DF] px-4 py-2 rounded-2xl h-12 relative group" id="header-user-profile">
+            <div className="w-8 h-8 rounded-full border border-[#D8D8C0] bg-[#FAF9F5] overflow-hidden flex items-center justify-center p-0.5">
+              <img src={currentUser.avatarUrl} alt="Ecosystem Avatar" referrerPolicy="no-referrer" className="w-full h-full" />
+            </div>
+            <div className="flex flex-col select-none pr-8">
+              <span className="text-[11px] font-bold text-[#5A5A40] leading-none flex items-center gap-1">
+                {currentUser.username}
+                <span className="text-[8px] font-mono px-1 bg-amber-100 text-amber-800 rounded-sm">
+                  {currentUser.points} pts
+                </span>
+              </span>
+              <span className="text-[8px] text-[#8C8C70] font-semibold mt-0.5 max-w-[120px] truncate">
+                {currentUser.level}
+              </span>
+            </div>
+            
+            <button 
+              onClick={onLogoutClick}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer duration-200"
+              title="Sign out of database session"
+              type="button"
+            >
+              Exit
+            </button>
           </div>
-          <span className="text-xs font-semibold text-[#5A5A40]">Active Explorer</span>
-        </motion.div>
+        ) : (
+          <motion.button 
+            onClick={onLoginClick}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center space-x-2 bg-[#5A5A40] hover:bg-[#3A3A2F] text-white border border-transparent px-4 py-2.5 rounded-2xl h-12 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+            id="header-signin-btn"
+            type="button"
+          >
+            <Award className="w-4 h-4 text-emerald-300 mr-0.5" />
+            <span>Login & Sync</span>
+          </motion.button>
+        )}
       </div>
     </header>
   );

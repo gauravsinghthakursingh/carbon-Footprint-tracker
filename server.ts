@@ -1,6 +1,8 @@
 import express, { Request, Response } from "express";
 import path from "path";
 import dotenv from "dotenv";
+import fs from "fs";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -10,6 +12,88 @@ const app = express();
 app.use(express.json());
 
 const PORT = 3000;
+
+// Dynamic file-persisted database for pro-level security and profile persistence
+const DB_FILE = path.join(process.cwd(), "db.json");
+
+interface DBStructure {
+  users: Array<{
+    id: string;
+    username: string;
+    email: string;
+    passwordHash: string;
+    salt: string;
+    createdAt: string;
+    avatarUrl: string;
+    points: number;
+    level: string;
+  }>;
+  userStates: {
+    [userId: string]: {
+      calculatorData?: any;
+      loggedActions?: any[];
+    };
+  };
+}
+
+let dbCache: DBStructure = { users: [], userStates: {} };
+
+try {
+  if (fs.existsSync(DB_FILE)) {
+    const raw = fs.readFileSync(DB_FILE, "utf-8");
+    dbCache = JSON.parse(raw);
+  } else {
+    fs.writeFileSync(DB_FILE, JSON.stringify(dbCache, null, 2));
+  }
+} catch (e) {
+  console.error("Failed to load ecosystem database: ", e);
+}
+
+function saveDB() {
+  try {
+    const tmp = DB_FILE + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(dbCache, null, 2));
+    fs.renameSync(tmp, DB_FILE);
+  } catch (e) {
+    console.error("Failed to perform atomic database save: ", e);
+  }
+}
+
+// Session store
+const sessions = new Map<string, string>(); // token -> userId
+
+// Security primitives
+function generateSalt(): string {
+  return crypto.randomBytes(16).toString("hex");
+}
+
+function hashPassword(password: string, salt: string): string {
+  return crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+}
+
+function generateSessionToken(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function calculateUserBadgeAndPoints(userId: string): { points: number; level: string } {
+  const state = dbCache.userStates[userId] || {};
+  const actions = state.loggedActions || [];
+  
+  // Base points on registration
+  let points = 200; 
+  
+  // Sum rewards: 10 points per kilogram of saved CO2e
+  actions.forEach((act: any) => {
+    points += Math.round((Number(act.kgSaved) || 0) * 10);
+  });
+  
+  let level = "Seedling Eco-Novice";
+  if (points >= 300) level = "Sprouting Green Activist";
+  if (points >= 700) level = "Committed Citizen";
+  if (points >= 1500) level = "Ecosystem Champion";
+  
+  return { points, level };
+}
 
 // Lazy initialization of Gemini client
 let ai: GoogleGenAI | null = null;
@@ -32,6 +116,209 @@ function getGeminiClient(): GoogleGenAI | null {
   }
   return ai;
 }
+
+// --- Authentication Middlewares & Helper Functions ---
+function getAuthenticatedUser(req: Request): any | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+  const token = authHeader.substring(7);
+  const userId = sessions.get(token);
+  if (!userId) return null;
+  
+  const user = dbCache.users.find((u) => u.id === userId);
+  return user || null;
+}
+
+// 0. User Registration API
+app.post("/api/auth/register", (req: Request, res: Response) => {
+  try {
+    const { username, email, password, avatarUrl } = req.body;
+    
+    // Strict input validation (Security Pro-Level)
+    if (!username || typeof username !== "string" || username.trim().length < 3) {
+      return res.status(400).json({ error: "Username must be at least 3 characters long." });
+    }
+    if (!email || typeof email !== "string" || !email.includes("@") || !email.includes(".")) {
+      return res.status(400).json({ error: "Please enter a valid email address." });
+    }
+    if (!password || typeof password !== "string" || password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters long." });
+    }
+    
+    const sanitizedEmail = email.trim().toLowerCase();
+    const sanitizedUsername = username.trim();
+    
+    // Verify unique user metrics
+    const emailExists = dbCache.users.some((u) => u.email.toLowerCase() === sanitizedEmail);
+    if (emailExists) {
+      return res.status(400).json({ error: "An account with this email already exists." });
+    }
+    
+    const usernameExists = dbCache.users.some((u) => u.username.toLowerCase() === sanitizedUsername.toLowerCase());
+    if (usernameExists) {
+      return res.status(400).json({ error: "This username is already taken." });
+    }
+    
+    // Secure Salting & Password Hashing via Node pbkdf2
+    const salt = generateSalt();
+    const passwordHash = hashPassword(password, salt);
+    
+    const userId = "usr_" + crypto.randomUUID();
+    const defaultAvatar = avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(sanitizedUsername)}`;
+    
+    const newUser = {
+      id: userId,
+      username: sanitizedUsername,
+      email: sanitizedEmail,
+      passwordHash,
+      salt,
+      createdAt: new Date().toISOString(),
+      avatarUrl: defaultAvatar,
+      points: 200, // starting points (Seedling level)
+      level: "Seedling Eco-Novice"
+    };
+    
+    dbCache.users.push(newUser);
+    
+    // Initialize empty state structure
+    dbCache.userStates[userId] = {
+      calculatorData: {
+        carMiles: 0,
+        carType: "none",
+        transitMiles: 0,
+        flightsCount: 0,
+        dietType: "balanced",
+        electricityBill: 0,
+        cleanGrid: "no",
+        heatingType: "gas",
+        wasteGeneration: "moderate",
+        compost: "no"
+      },
+      loggedActions: []
+    };
+    
+    saveDB();
+    
+    // Auto-login upon registration
+    const token = generateSessionToken();
+    sessions.set(token, userId);
+    
+    // Return safe profile block
+    const { passwordHash: _, salt: __, ...safeProfile } = newUser;
+    return res.status(201).json({
+      user: safeProfile,
+      token,
+      state: dbCache.userStates[userId]
+    });
+  } catch (error: any) {
+    console.error("Critical error in registration:", error);
+    return res.status(500).json({ error: "Internal server registry error." });
+  }
+});
+
+// 1. User Login API
+app.post("/api/auth/login", (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: "Please provide both an email and password." });
+    }
+    
+    const sanitizedEmail = email.trim().toLowerCase();
+    const user = dbCache.users.find((u) => u.email.toLowerCase() === sanitizedEmail);
+    
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+    
+    // Dynamic verification of hash
+    const verifiedHash = hashPassword(password, user.salt);
+    if (verifiedHash !== user.passwordHash) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+    
+    const token = generateSessionToken();
+    sessions.set(token, user.id);
+    
+    // Recalculate dynamic levels based on logging history
+    const { points, level } = calculateUserBadgeAndPoints(user.id);
+    user.points = points;
+    user.level = level;
+    saveDB();
+    
+    const { passwordHash: _, salt: __, ...safeProfile } = user;
+    return res.json({
+      user: safeProfile,
+      token,
+      state: dbCache.userStates[user.id] || { calculatorData: {}, loggedActions: [] }
+    });
+  } catch (error: any) {
+    console.error("Critical error in login:", error);
+    return res.status(500).json({ error: "Internal authentication error." });
+  }
+});
+
+// 2. Authentication Verification Profile API
+app.get("/api/auth/me", (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized session." });
+  }
+  
+  const { points, level } = calculateUserBadgeAndPoints(user.id);
+  user.points = points;
+  user.level = level;
+  saveDB();
+  
+  const { passwordHash: _, salt: __, ...safeProfile } = user;
+  return res.json({
+    user: safeProfile,
+    state: dbCache.userStates[user.id] || { calculatorData: {}, loggedActions: [] }
+  });
+});
+
+// 3. De-authenticate Logout API
+app.post("/api/auth/logout", (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    sessions.delete(token);
+  }
+  return res.json({ success: true, message: "Logged out successfully." });
+});
+
+// 4. Synchronization State Endpoint (Saves actions & calculations, calculates dynamic gamified badge points)
+app.post("/api/state/sync", (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized state sync request." });
+  }
+  
+  const { calculatorData, loggedActions } = req.body;
+  
+  // Create / overwrite user's state
+  dbCache.userStates[user.id] = {
+    calculatorData: calculatorData || dbCache.userStates[user.id]?.calculatorData,
+    loggedActions: loggedActions || dbCache.userStates[user.id]?.loggedActions || []
+  };
+  
+  // Re-calculate badging stats on server for absolute security integrity
+  const { points, level } = calculateUserBadgeAndPoints(user.id);
+  user.points = points;
+  user.level = level;
+  
+  saveDB();
+  
+  const { passwordHash: _, salt: __, ...safeProfile } = user;
+  return res.json({
+    success: true,
+    user: safeProfile,
+    state: dbCache.userStates[user.id]
+  });
+});
 
 // Generate intelligent default insight recommendations (fallback if API key is missing or calls fail)
 function getFallbackInsights(calculator: any, loggedActions: any[]) {
